@@ -27,6 +27,8 @@ Original dataset doesn't include STIM channel, EOG channel, ECG channel, and ref
 
 Original dataset is confidential, I'm not uploading it to repo.
 
+Assumes data are stored in google drive.
+
 ## Software
 Python 3.8.16
 
