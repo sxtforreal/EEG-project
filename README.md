@@ -22,12 +22,16 @@ We use EEGNet(Lawhern et al., 2018) architecture as reference for our CNN model,
 
 ## Notice
 Original dataset is presented as edf files.
+
 Original dataset doesn't include STIM channel, EOG channel, ECG channel, and reference channel. We either infer or simulate.
+
 Original dataset is confidential, I'm not uploading it to repo.
 
 ## Software
 Python 3.8.16
+
 Pre-processing: MNE
+
 Neural Network: PyTorch
 
 ## References
