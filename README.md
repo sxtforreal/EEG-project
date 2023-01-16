@@ -11,7 +11,7 @@ An ideal calibration-less algorithm should take one of two paths: (1) determine 
 
 To acquire generalization and robustness, we are building a similarity measurement in the high dimensional encoded feature space to support our model. After the model is trained with a library of labeled training data, the new unlabeled data is mapped into a pre-trained feature space and compare with the existing ones. Based on the similarity scores, we assign the most appropriate pre-trained classifier to use. 
 
-Meanwhile, we will try other methods to accelerate the process including CNN architecture modification, adapting a dynamic stopping criteria for data acquisition, etc.
+Meanwhile, we will try other methods to accelerate the process including neural network architecture modification, dynamic stopping criteria for data acquisition, etc.
 
 ## Details
 P300 speller users use a 9 by 8 spelling grid as 'keyboard'. They gaze at one of the grids to express their spelling intentions. In each round, the rows and columns of the spelling grid flash sequentially. When the gazed grid flashes, a P300 wave generates in the user’s EEG signal which can be characterized as a positive deflection with a latency of roughly 300 ms after the flash onset. 
