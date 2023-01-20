@@ -1,7 +1,5 @@
 !pip install mne
 !pip install umap
-!pip install umap-learn[plot]
-!pip install holoviews
 !pip install -U ipykernel
 import os
 import numpy as np
@@ -15,7 +13,6 @@ from mne.preprocessing import Xdawn
 from mne.viz import plot_epochs_image
 import plotly.express as px
 from sklearn.model_selection import train_test_split
-import umap
 #from google.colab import drive
 #drive.mount('/content/gdrive')
 
@@ -156,42 +153,25 @@ dat_16, label_16 = data_generator('16')
 dat_17, label_17 = data_generator('17')
 
 
-
 ### Neural Network
 import math
 import random 
 import torch.nn as nn
 import torch.nn.functional as F
-import os
 from torch.utils.data import TensorDataset
 from tqdm.notebook import tqdm, trange
 from sklearn.metrics import roc_auc_score, accuracy_score, average_precision_score
 
-def sigmoid(x):
-    return 1 / (1 + math.exp(-x))
-
-# A function that creates a list containing all prediction probabilities for class = 1
-def unlist_prediction(lst, label_class):
-    b = []
-    if label_class == 1:
-        for i in range(len(lst)):
-            for j in range(len(lst[i])):
-                b.append(lst[i][j][1])
-    elif label_class == 0:
-        for k in range(len(lst)):
-            for l in range(len(lst[k])):
-                b.append(lst[k][l][0])
-    for m in range(len(b)):
-            b[m] = sigmoid(b[m])
-    return b
-
-# Unlist a list of lists
+# Unlist a nested list
 def unlist(lst):
-    l = []
-    for i in range(len(lst)):
-        for j in range(len(lst[i])):
-            l.append(lst[i][j])
-    return l
+    flattened_list = []
+    for ele in lst:
+      if type(ele) is list:
+        for item in ele:
+          flattened_list.append(item)
+      else:
+        flattened_list.append(ele)
+    return flattened_list
 
 def data_reader(subject):
     x = []
@@ -207,6 +187,7 @@ def data_reader(subject):
     x.append(subject)
     return x
   
+ ### EEGNet architecture
  class EEGNet(nn.Module):
     def __init__(self):
         super(EEGNet, self).__init__()
@@ -216,34 +197,39 @@ def data_reader(subject):
         self.D = 2
         self.F2 = self.F1 * self.D # Number of filters for separable conv, set to be F2
         
-        self.conv1 = nn.Conv2d(1, self.F1, (1, 128), padding = 'same', bias = False) #because sampling frequency is 256Hz
-        self.conv1_bn = nn.BatchNorm2d(self.F1)
-        self.conv2 = nn.Conv2d(self.F1, self.D*self.F1, (self.C, 1), groups = self.F1, padding = 'valid', bias = False) #https://pytorch.org/docs/0.3.1/nn.html#torch.nn.Conv2d
-        self.conv2_bn = nn.BatchNorm2d(self.D*self.F1)
-        self.depthwise = nn.Conv2d(self.D*self.F1, self.F2, (1, 10), padding = 'same', groups = self.D*self.F1, bias = False)
-        self.pointwise = nn.Conv2d(self.F2, self.F2, (1, 1), bias = False) #https://www.analyticsvidhya.com/blog/2021/11/an-introduction-to-separable-convolutions/#:~:text=A%20Separable%20Convolution%20is%20a,to%20achieve%20the%20same%20effect.
-        self.block2_bn = nn.BatchNorm2d(self.F2)
+        self.conv1 = nn.Conv2d(1, self.F1, (1, 104), padding = 'same', bias = False) #because sampling frequency is 256Hz --> 206s
+        self.conv11 = nn.Conv2d(1, self.F1, (1, 52), padding = 'same', bias = False) #half of previous
+        self.conv12 = nn.Conv2d(1, self.F1, (1, 27), padding = 'same', bias = False) #half of previous
+        self.conv1_bn = nn.BatchNorm2d(self.F1*3)
+        self.conv2 = nn.Conv2d(self.F1*3, self.D*self.F1*3, (self.C, 1), groups = self.F1*3, padding = 'valid', bias = False) #https://pytorch.org/docs/0.3.1/nn.html#torch.nn.Conv2d
+        self.conv2_bn = nn.BatchNorm2d(self.D*self.F1*3)
+        self.depthwise = nn.Conv2d(self.D*self.F1*3, self.F2*3, (1, 5), padding = 'same', groups = self.D*self.F1*3, bias = False)
+        self.pointwise = nn.Conv2d(self.F2*3, self.F2*3, (1, 1), bias = False) #https://www.analyticsvidhya.com/blog/2021/11/an-introduction-to-separable-convolutions/#:~:text=A%20Separable%20Convolution%20is%20a,to%20achieve%20the%20same%20effect.
+        self.block2_bn = nn.BatchNorm2d(self.F2*3)
         self.flatten = nn.Flatten(0, -1)
 
-        self.fc1 = nn.Linear(self.F2*10, 1, bias = True)
-        self.fc2 = nn.Linear(self.F2*10, 1, bias = True)
-        self.fc3 = nn.Linear(self.F2*10, 1, bias = True)
-        self.fc4 = nn.Linear(self.F2*10, 1, bias = True)
-        self.fc5 = nn.Linear(self.F2*10, 1, bias = True)
-        self.fc6 = nn.Linear(self.F2*10, 1, bias = True)
-        self.fc7 = nn.Linear(self.F2*10, 1, bias = True)
-        self.fc8 = nn.Linear(self.F2*10, 1, bias = True)
-        self.fc9 = nn.Linear(self.F2*10, 1, bias = True)
-        self.fc10 = nn.Linear(self.F2*10, 1, bias = True)
-        self.fc11 = nn.Linear(self.F2*10, 1, bias = True)
-        self.fc13 = nn.Linear(self.F2*10, 1, bias = True)
-        self.fc14 = nn.Linear(self.F2*10, 1, bias = True)
-        self.fc15 = nn.Linear(self.F2*10, 1, bias = True)
-        self.fc16 = nn.Linear(self.F2*10, 1, bias = True)      
+        self.fc1 = nn.Linear(self.F2*30, 1, bias = True)
+        self.fc2 = nn.Linear(self.F2*30, 1, bias = True)
+        self.fc3 = nn.Linear(self.F2*30, 1, bias = True)
+        self.fc4 = nn.Linear(self.F2*30, 1, bias = True)
+        self.fc5 = nn.Linear(self.F2*30, 1, bias = True)
+        self.fc6 = nn.Linear(self.F2*30, 1, bias = True)
+        self.fc7 = nn.Linear(self.F2*30, 1, bias = True)
+        self.fc8 = nn.Linear(self.F2*30, 1, bias = True)
+        self.fc9 = nn.Linear(self.F2*30, 1, bias = True)
+        self.fc10 = nn.Linear(self.F2*30, 1, bias = True)
+        self.fc11 = nn.Linear(self.F2*30, 1, bias = True)
+        self.fc13 = nn.Linear(self.F2*30, 1, bias = True)
+        self.fc14 = nn.Linear(self.F2*30, 1, bias = True)
+        self.fc15 = nn.Linear(self.F2*30, 1, bias = True)
+        self.fc16 = nn.Linear(self.F2*30, 1, bias = True)      
         
     def forward(self, x, subject):
         # Block 1
-        x = self.conv1(x)
+        x1 = self.conv1(x)
+        x2 = self.conv11(x)
+        x3 = self.conv12(x)
+        x = torch.cat((x1, x2, x3), dim = 1)
         x = self.conv1_bn(x)
         x = self.conv2(x)
         x = self.conv2_bn(x)
@@ -289,7 +275,7 @@ def data_reader(subject):
             x = self.fc15(x)
         elif subject == 16:
             x = self.fc16(x)
-        x = F.sigmoid(x)
+        x = torch.sigmoid(x)
         return x
 
 activation = {}
@@ -297,9 +283,6 @@ def get_activation(name):
     def hook(model, input, output):
         activation[name] = output.detach()
     return hook
-
-  
-  
 
 ### Model training
 # Use 15 subjects to train the encoder and the fully connected layers
@@ -345,7 +328,6 @@ def train_model(BATCH, Learning_rate, EPOCH, seed):
 
             # Forward pass
             y = model(signals, subject)
-            #labels = labels.unsqueeze(1)
             labels = labels.float()
             loss = criterion(y, labels)
         
@@ -357,7 +339,6 @@ def train_model(BATCH, Learning_rate, EPOCH, seed):
     torch.save(model, '/content/gdrive/MyDrive/BCI matrices/model.pth')
 
  train_model(1, 0.002, 1, 0)
-    
 
 ### Collect pre-trained features from pre-trained model
 subjects = {'01': data_reader('01'), '02': data_reader('02'), '03': data_reader('03'), '04': data_reader('04'), '05': data_reader('05'), '06': data_reader('06'), '07': data_reader('07'), '08': data_reader('08'), '09': data_reader('09'), '10': data_reader('10'), '11': data_reader('11'), '13': data_reader('13'), '14': data_reader('14'), '15': data_reader('15'), '16': data_reader('16'), '17': data_reader('17')}
@@ -389,19 +370,19 @@ with torch.no_grad():
     for signals, labels, subject in tqdm(train_loader):
         # Forward pass, choose the most similar subject
         if subject == '17':
-          y = model(signals, '16')
+          y = model(signals, '01')
         else: 
           y = model(signals, subject)
         features.append(activation['flatten'])
         sub.append(subject)
 
-# Encoded feature matrix (97920*180)
-encoded_feature = np.zeros(shape=(97920, 180))
+# Encoded feature matrix (97920*540)
+encoded_feature = np.zeros(shape=(97920, 540))
 for i in range(len(features)):
   arr = features[i].cpu().detach().numpy().flatten()
   encoded_feature[i] = arr
 
-# Individual encoded feature matrix (6120*180)
+# Individual encoded feature matrix (6120*540)
 feature_sub1 = encoded_feature[0:6120,:]
 feature_sub2 = encoded_feature[6120:12240,:]
 feature_sub3 = encoded_feature[12240:18360,:]
@@ -421,9 +402,13 @@ feature_sub17 = encoded_feature[91800:97920,:]
 
 ### We use KL divergence and Wasserstein distance to measure similarity
 # Cholesky decomposition
+import scipy
+import scipy.linalg
+
+# Cholesky decomposition
 def lower_t(feature):
   cov = np.cov(feature, rowvar = False)
-  L = np.linalg.cholesky(cov)
+  L = scipy.linalg.cholesky(cov, lower = True)
   return L
 
 mean1 = np.mean(feature_sub1, axis=0)
@@ -443,40 +428,36 @@ mean15 = np.mean(feature_sub15, axis=0)
 mean16 = np.mean(feature_sub16, axis=0)
 mean17 = np.mean(feature_sub17, axis=0)
 
-cov1 = lower_t(feature_sub1)
-cov2 = lower_t(feature_sub2)
-cov3 = lower_t(feature_sub3)
-cov4 = lower_t(feature_sub4)
-cov5 = lower_t(feature_sub5)
-cov6 = lower_t(feature_sub6)
-cov7 = lower_t(feature_sub7)
-cov8 = lower_t(feature_sub8)
-cov9 = lower_t(feature_sub9)
-cov10 = lower_t(feature_sub10)
-cov11 = lower_t(feature_sub11)
-cov13 = lower_t(feature_sub13)
-cov14 = lower_t(feature_sub14)
-cov15 = lower_t(feature_sub15)
-cov16 = lower_t(feature_sub16)
-cov17 = lower_t(feature_sub17)
+l1 = lower_t(feature_sub1)
+l2 = lower_t(feature_sub2)
+l3 = lower_t(feature_sub3)
+l4 = lower_t(feature_sub4)
+l5 = lower_t(feature_sub5)
+l6 = lower_t(feature_sub6)
+l7 = lower_t(feature_sub7)
+l8 = lower_t(feature_sub8)
+l9 = lower_t(feature_sub9)
+l10 = lower_t(feature_sub10)
+l11 = lower_t(feature_sub11)
+l13 = lower_t(feature_sub13)
+l14 = lower_t(feature_sub14)
+l15 = lower_t(feature_sub15)
+l16 = lower_t(feature_sub16)
+l17 = lower_t(feature_sub17)
 
-def KL(mu0, mu1, cov0, cov1):
-  A = (np.linalg.inv(cov1@cov1.transpose())@(cov0@cov0.transpose())).trace()
-  k = 180
-  B = (mu1-mu0).transpose()@np.linalg.inv(cov1@cov1.transpose())@(mu1-mu0)
-  logdet1 = 2*sum(np.log(np.diag(cov1)))
-  logdet0 = 2*sum(np.log(np.diag(cov0)))
-  C = logdet1-logdet0
-  return 1/2 * (A-k+B+C)
+def KL(mu1, mu0, l1, l0, k=540):
+  M = np.linalg.solve(l1, l0) #540*540
+  y = np.linalg.solve(l1, (mu1-mu0)) #540
+  A = 0
+  C = 0
+  for i in range(k):
+    A += M[i,i]**2
+    C += (np.log(l1[i,i])-np.log(l0[i,i]))
+  B = y.dot(y)
+  return 1/2*(A-k+B+2*C)
 
-## KL divergence: reference group sub17
-KL = [KL(mean1,mean17,cov1,cov17),KL(mean2,mean17,cov2,cov17),KL(mean3,mean17,cov3,cov17),KL(mean4,mean17,cov4,cov17),KL(mean5,mean17,cov5,cov17),KL(mean6,mean17,cov6,cov17),KL(mean7,mean17,cov7,cov17),KL(mean8,mean17,cov8,cov17),KL(mean9,mean17,cov9,cov17),KL(mean10,mean17,cov10,cov17),KL(mean11,mean17,cov11,cov17),KL(mean13,mean17,cov13,cov17),KL(mean14,mean17,cov14,cov17),KL(mean15,mean17,cov15,cov17),KL(mean16,mean17,cov16,cov17)]
-
-def wasserstein(mu0,mu1,cov0,cov1):
-  return np.linalg.norm(mu0-mu1)**2+np.linalg.norm(cov0-cov1,'fro')**2
-
-## Wasserstein distance: reference group sub17
-wass = [wasserstein(mean1,mean17,cov1,cov17),wasserstein(mean2,mean17,cov2,cov17),wasserstein(mean3,mean17,cov3,cov17),wasserstein(mean4,mean17,cov4,cov17),wasserstein(mean5,mean17,cov5,cov17),wasserstein(mean6,mean17,cov6,cov17),wasserstein(mean7,mean17,cov7,cov17),wasserstein(mean8,mean17,cov8,cov17),wasserstein(mean9,mean17,cov9,cov17),wasserstein(mean10,mean17,cov10,cov17),wasserstein(mean11,mean17,cov11,cov17),wasserstein(mean13,mean17,cov13,cov17),wasserstein(mean14,mean17,cov14,cov17),wasserstein(mean15,mean17,cov15,cov17),wasserstein(mean16,mean17,cov16,cov17)]
+def wasserstein(mu1,mu0,l1,l0):
+  return np.linalg.norm(mu1-mu0)**2 + np.linalg.norm(l1-l0,'fro')**2
 
 # AUCs of subject 17 using different pre-trained classifiers
 def auc(which_sub):
@@ -526,6 +507,10 @@ auc16,ap16 = auc(16)
 ### Visualization
 auc = [auc1,auc2,auc3,auc4,auc5,auc6,auc7,auc8,auc9,auc10,auc11,auc13,auc14,auc15,auc16]
 ap = [ap1,ap2,ap3,ap4,ap5,ap6,ap7,ap8,ap9,ap10,ap11,ap13,ap14,ap15,ap16]
+# KL divergence with reference group = 17
+KL = [KL(mean1,mean17,l1,l17),KL(mean2,mean17,l2,l17),KL(mean3,mean17,l3,l17),KL(mean4,mean17,l4,l17),KL(mean5,mean17,l5,l17),KL(mean6,mean17,l6,l17),KL(mean7,mean17,l7,l17),KL(mean8,mean17,l8,l17),KL(mean9,mean17,l9,l17),KL(mean10,mean17,l10,l17),KL(mean11,mean17,l11,l17),KL(mean13,mean17,l13,l17),KL(mean14,mean17,l14,l17),KL(mean15,mean17,l15,l17),KL(mean16,mean17,l16,l17)]
+# Wasserstein distance with reference group = 17
+wass = [wasserstein(mean1,mean17,l1,l17),wasserstein(mean2,mean17,l2,l17),wasserstein(mean3,mean17,l3,l17),wasserstein(mean4,mean17,l4,l17),wasserstein(mean5,mean17,l5,l17),wasserstein(mean6,mean17,l6,l17),wasserstein(mean7,mean17,l7,l17),wasserstein(mean8,mean17,l8,l17),wasserstein(mean9,mean17,l9,l17),wasserstein(mean10,mean17,l10,l17),wasserstein(mean11,mean17,l11,l17),wasserstein(mean13,mean17,l13,l17),wasserstein(mean14,mean17,l14,l17),wasserstein(mean15,mean17,l15,l17),wasserstein(mean16,mean17,l16,l17)]
 
 plt.scatter(auc, KL)
 plt.title('AUC vs KL')
