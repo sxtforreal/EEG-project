@@ -37,6 +37,11 @@ Pre-processing: MNE
 Neural Network: PyTorch
 
 ## References
-1. Lawhern, Vernon J, Amelia J Solon, Nicholas R Waytowich, Stephen M Gordon, Chou P Hung, and Brent J Lance. “EEGNet: A Compact Convolutional Neural Network for EEG-Based Brain–Computer Interfaces.” Journal of Neural Engineering 15, no. 5 (2018): 056013. https://doi.org/10.1088/1741-2552/aace8c.
-2. Farwell, L.A., and E. Donchin. “Talking off the Top of Your Head: Toward a Mental Prosthesis Utilizing Event-Related Brain Potentials.” Electroencephalography and Clinical Neurophysiology 70, no. 6 (1988): 510–23. https://doi.org/10.1016/0013-4694(88)90149-6. 
+1. Lawhern, Vernon J, Amelia J Solon, Nicholas R Waytowich, Stephen M Gordon, Chou P Hung, and Brent J Lance. “EEGNet: A Compact Convolutional Neural Network for EEG-Based Brain–Computer Interfaces.” Journal of Neural Engineering 15, no. 5 (2018): 056013. https://doi.org/10.1088/1741-2552/aace8c.
+2. Farwell, L.A., and E. Donchin. “Talking off the Top of Your Head: Toward a Mental Prosthesis Utilizing Event-Related Brain Potentials.” Electroencephalography and Clinical Neurophysiology 70, no. 6 (1988): 510–23. https://doi.org/10.1016/0013-4694(88)90149-6.
+3. Mainsah, B O, L M Collins, K A Colwell, E W Sellers, D B Ryan, K Caves, and C S Throckmorton. “Increasing BCI Communication Rates with Dynamic Stopping towards More Practical Use: An ALS Study.” Journal of Neural Engineering 12, no. 1 (2015): 016013. https://doi.org/10.1088/1741-2560/12/1/016013. 
+4. Mainsah, Boyla O., Kenneth A. Colwell, Leslie M. Collins, and Chandra S. Throckmorton. “Utilizing a Language Model to Improve Online Dynamic Data Collection in p300 Spellers.” IEEE Transactions on Neural Systems and Rehabilitation Engineering 22, no. 4 (2014): 837–46. https://doi.org/10.1109/tnsre.2014.2321290. 
+5. Krusienski, D.J., E.W. Sellers, D.J. McFarland, T.M. Vaughan, and J.R. Wolpaw. “Toward Enhanced P300 Speller Performance.” Journal of Neuroscience Methods 167, no. 1 (2008): 15–21. https://doi.org/10.1016/j.jneumeth.2007.07.017. 
+6. Lee, Jongmin, Kyungho Won, Moonyoung Kwon, Sung Chan Jun, and Minkyu Ahn. “CNN with Large Data Achieves True Zero-Training in Online P300 Brain-Computer Interface.” IEEE Access 8 (2020): 74385–400. https://doi.org/10.1109/access.2020.2988057. 
+<img width="2105" alt="image" src="https://user-images.githubusercontent.com/93351260/215842271-23c3162b-68cc-4182-b24a-45cab2a9bd37.png">
 
