@@ -14,25 +14,25 @@ To acquire generalization and robustness, we are building a similarity measureme
 Meanwhile, we will try other methods to accelerate the process including neural network architecture modification, dynamic stopping criteria for data acquisition, etc.
 
 ## Details
-P300 speller users use a 9 by 8 spelling grid as 'keyboard'. They gaze at one of the grids to express their spelling intentions. In each round, the rows and columns of the spelling grid flash sequentially. When the gazed grid flashes, a P300 wave generates in the user’s EEG signal which can be characterized as a positive deflection with a latency of roughly 300 ms after the flash onset. 
+P300 speller users use a 9 by 8 spelling grid as 'keyboard'. They gaze at one of the cells to show their spelling intentions. In each round, the rows and columns of the spelling grid flash sequentially. When the gazed cell flashes, a P300 wave generates in the user’s EEG signal which can be characterized as a positive deflection with a latency of roughly 300 ms after the flash onset. 
 
 In pre-processing, we crop the continuous raw EEG signal into epochs, each epoch corresponds to a 800 ms window after each flash onset. Techniques such as frequency filtering, Independent Component Analysis, and EOG/ECG channel simulation are carried out to increase the signal-to-noise ratio.
 
 We use EEGNet(Lawhern et al., 2018) architecture as reference for our CNN model, which aims to detect the pattern of P300 wave in each epoch and make binary classification. Once we can successfully identify whether an epoch contains P300 wave, or equivalently whether a flash elicits ERP, we can infer subject’s spelling intentions with the known information of flashing order.
 
-## Notice
-Original dataset is presented as edf files.
+## Data
+Dataset is presented as edf files.
 
-Original dataset doesn't include STIM channel, EOG channel, ECG channel, and reference channel. We either infer or simulate.
+Dataset doesn't include STIM channel, EOG channel, ECG channel. We use Fp1 and Fp2 channels as proxies for EOG channel.
 
-Original dataset is confidential, I'm not uploading it to repo.
+Data is already referenced, no need to further set common average reference(CAR).
 
-Assumes data are stored in google drive.
+Dataset is confidential, I'm not uploading it to repo.
 
 ## Software
 Python 3.8.16
 
-Pre-processing: MNE
+Pre-processing: MNE1.3
 
 Neural Network: PyTorch
 
