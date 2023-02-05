@@ -13,17 +13,16 @@ from mne.preprocessing import Xdawn
 from mne.viz import plot_epochs_image
 import plotly.express as px
 from sklearn.model_selection import train_test_split
-#from google.colab import drive
+from google.colab import drive
 #drive.mount('/content/gdrive')
 
+# Use GPU
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 if device =='cuda':
     print("Train on GPU...")
 else:
     print("Train on CPU...")
-    
-    
-    
+     
 ### Data preparation    
 def create_stim_channel(x):
     """
@@ -69,7 +68,7 @@ def get_true_label(x):
     
 def data_for_EEGNET(subject: str, which_round: str):
     """
-    Prepare the input data to CNN model.
+    Get the input feature matrix and the label of the given subject's training data.
     """
     r = mne.io.read_raw_edf('/content/gdrive/MyDrive/dat/Subject' + subject + '/Session001/Train/RowColumn/Subject_' + subject + '_Train_S001R' + which_round + '.edf')
     r.load_data()
@@ -80,7 +79,7 @@ def data_for_EEGNET(subject: str, which_round: str):
     # Reset channel types
     r.set_channel_types({'IsGazeValid':'syst', 'EyeGazeX':'syst', 'EyeGazeY':'syst', 'PupilSizeLeft':'syst', 'PupilSizeRight':'syst', 'EyePosX':'syst', 'EyePosY':'syst', 'EyeDist':'syst', 'A_1_1':'syst', 'B_1_2':'syst', 'C_1_3':'syst', 'D_1_4':'syst', 'E_1_5':'syst', 'F_1_6':'syst', 'G_1_7':'syst', 'H_1_8':'syst', 'I_2_1':'syst', 'J_2_2':'syst', 'K_2_3':'syst', 'L_2_4':'syst', 'M_2_5':'syst', 'N_2_6':'syst', 'O_2_7':'syst', 'P_2_8':'syst', 'Q_3_1':'syst', 'R_3_2':'syst', 'S_3_3':'syst', 'T_3_4':'syst', 'U_3_5':'syst', 'V_3_6':'syst', 'W_3_7':'syst', 'X_3_8':'syst', 'Y_4_1':'syst', 'Z_4_2':'syst', 'Sp_4_3':'syst', '1_4_4':'syst', '2_4_5':'syst', '3_4_6':'syst', '4_4_7':'syst', '5_4_8':'syst', '6_5_1':'syst', '7_5_2':'syst', '8_5_3':'syst', '9_5_4':'syst', '0_5_5':'syst', 'Prd_5_6':'syst', 'Ret_5_7':'syst', 'Bs_5_8':'syst', '?_6_1':'syst', ',_6_2':'syst', ';_6_3':'syst', '\\_6_4':'syst', '/_6_5':'syst', '+_6_6':'syst', '-_6_7':'syst', 'Alt_6_8':'syst', 'Ctrl_7_1':'syst', '=_7_2':'syst', 'Del_7_3':'syst', 'Home_7_4':'syst', 'UpAw_7_5':'syst', 'End_7_6':'syst', 'PgUp_7_7':'syst', 'Shft_7_8':'syst', 'Save_8_1':'syst', "'_8_2":'syst', 'F2_8_3':'syst', 'LfAw_8_4':'syst', 'DnAw_8_5':'syst', 'RtAw_8_6':'syst', 'PgDn_8_7':'syst', 'Pause_8_8':'syst', 'Caps_9_1':'syst', 'F5_9_2':'syst', 'Tab_9_3':'syst', 'EC_9_4':'syst', 'Esc_9_5':'syst', 'email_9_6':'syst', '!_9_7':'syst', 'Sleep_9_8':'syst', 'StimulusType':'syst', 'SelectedTarget':'syst', 'SelectedRow':'syst', 'SelectedColumn':'syst', 'PhaseInSequence':'syst', 'CurrentTarget':'syst', 'BCISelection':'syst', 'Error':'syst'})
     
-    # Set reference
+    # Set Common Average Reference(CAR) to denoise 
     r.set_eeg_reference('average', projection = True)
 
     # Create and add STIM channel
@@ -89,7 +88,7 @@ def data_for_EEGNET(subject: str, which_round: str):
     stim_raw = mne.io.RawArray(STIM, info)
     r.add_channels([stim_raw], force_update_info = True)
        
-    # Set montage(electrode location on scalp)
+    # Set montage(electrode location on scalp) to be standard 10-20 montage
     montage1020 = mne.channels.make_standard_montage('standard_1020')
     picks = ['F3','Fz','F4','T7','C3','Cz','C4','T8','CP3','CP4','P3','Pz','P4','PO7','PO8','Oz','Fp1','Fp2','F7','F8','FC5','FC1','FC2','FC6','CPz','P7','P5','PO3','POz','PO4','O1','O2']
     ind = [i for (i, channel) in enumerate(montage1020.ch_names) if channel in picks]
@@ -100,13 +99,14 @@ def data_for_EEGNET(subject: str, which_round: str):
     r.set_montage(montage1020_new)
     
     # ICA
-    #ica = mne.preprocessing.ICA(n_components = 15, random_state = 1)
-    #ica.fit(r)
-    # Use Fp1 and Fp2 channels as proxies to the missing EOG channel. Base on observation, eye artifacts exist in every data so we want to auto-remove it from all independent components.
-    #ica.exclude = []
-    #eog_indices, eog_scores = ica.find_bads_eog(r, ch_name = ['Fp1','Fp2'], measure = 'correlation', threshold = 'auto')
-    #ica.exclude = eog_indices
-    #ica.apply(r)
+    ica = mne.preprocessing.ICA(n_components = 0.99, method = 'fastica')
+    ica.fit(r)
+    # Use Fp1 and Fp2 channels as bipolar referencing channels to simulate EOG channel. By doing this, we can drop the eye movement artifacts ica component.
+    eog_indices, eog_scores = ica.find_bads_eog(r, ch_name = ['Fp1','Fp2'], measure = 'correlation', threshold = 'auto')
+    ica.exclude = eog_indices
+    # Visualize the differences after removing the blinks
+    #ica.plot_overlay(r, exclude = eog_indices, picks = ['PO7', 'PO8', 'PO3', 'O1', 'Oz', 'Cz', 'PO4', 'O2'])
+    ica.apply(r)
     
     # Define parameters
     tmin, tmax = 0.0, 0.8
@@ -116,7 +116,7 @@ def data_for_EEGNET(subject: str, which_round: str):
     
     # Epoching
     epoch_r = mne.Epochs(r, events = events, event_id = event_id, tmin = tmin,
-                    tmax = tmax, baseline = baseline, picks = ['Cz', 'CPz', 'Fz', 'P7', 'PO7', 'O1', 'Oz', 'O2', 'PO8'])
+                    tmax = tmax, baseline = baseline, picks = ['PO7', 'PO8', 'PO3', 'O1', 'Oz', 'Cz', 'PO4', 'O2'])
     epoch_dat_r = epoch_r.get_data()
    
     # Get label
@@ -188,12 +188,12 @@ def data_reader(subject):
     return x
   
  ### EEGNet architecture
- class EEGNet(nn.Module):
+class EEGNet(nn.Module):
     def __init__(self):
         super(EEGNet, self).__init__()
 
-        self.C = 9
-        self.F1 = 9
+        self.C = 8 #Number of channels
+        self.F1 = 8
         self.D = 2
         self.F2 = self.F1 * self.D # Number of filters for separable conv, set to be F2
         
@@ -222,29 +222,28 @@ def data_reader(subject):
         self.fc13 = nn.Linear(self.F2*30, 1, bias = True)
         self.fc14 = nn.Linear(self.F2*30, 1, bias = True)
         self.fc15 = nn.Linear(self.F2*30, 1, bias = True)
-        self.fc16 = nn.Linear(self.F2*30, 1, bias = True)      
+        self.fc16 = nn.Linear(self.F2*30, 1, bias = True)
+        self.fc17 = nn.Linear(self.F2*30, 1, bias = True)      
         
     def forward(self, x, subject):
-        # Block 1
-        x1 = self.conv1(x)
-        x2 = self.conv11(x)
-        x3 = self.conv12(x)
-        x = torch.cat((x1, x2, x3), dim = 1)
-        x = self.conv1_bn(x)
-        x = self.conv2(x)
-        x = self.conv2_bn(x)
-        x = F.elu(x)
-        x = F.avg_pool2d(x, (1, 4))
-        x = F.dropout(x, p = 0.25)
-        # Block 2
-        x = self.depthwise(x)
-        x = self.pointwise(x)
-        x = self.block2_bn(x)
-        x = F.elu(x)
-        x = F.avg_pool2d(x, (1, 5))
-        x = F.dropout(x, p = 0.25)
-        # Classifier
-        x = self.flatten(x)
+        x1 = self.conv1(x) # 1st temporal filter
+        x2 = self.conv11(x) # 2nd temporal filter
+        x3 = self.conv12(x) # 3rd temporal filter
+        x = torch.cat((x1, x2, x3), dim = 1) # stack feature maps
+        x = self.conv1_bn(x) # batch normalization
+        x = self.conv2(x) # depthwise filter
+        x = self.conv2_bn(x) # batch normalization
+        x = F.elu(x) # activation
+        x = F.avg_pool2d(x, (1, 4)) # average pooling
+        x = F.dropout(x, p = 0.25) # dropout
+        x = self.depthwise(x) # separable part1
+        x = self.pointwise(x) # separable part2
+        x = self.block2_bn(x) # batch normalization
+        x = F.elu(x) # activation
+        x = F.avg_pool2d(x, (1, 5)) # average pooling
+        x = F.dropout(x, p = 0.25) # dropout
+        x = self.flatten(x) # flatten
+
         if subject == 1:
             x = self.fc1(x)
         elif subject == 2:
@@ -275,6 +274,8 @@ def data_reader(subject):
             x = self.fc15(x)
         elif subject == 16:
             x = self.fc16(x)
+        elif subject == 17:
+            x = self.fc17(x)
         x = torch.sigmoid(x)
         return x
 
@@ -285,123 +286,7 @@ def get_activation(name):
     return hook
 
 ### Model training
-# Use 15 subjects to train the encoder and the fully connected layers
-def train_model(BATCH, Learning_rate, EPOCH, seed):
-    # A dictionary of all training patients' data and labels
-    subjects = {'01': data_reader('01'), '02': data_reader('02'), '03': data_reader('03'), '04': data_reader('04'), '05': data_reader('05'), '06': data_reader('06'), '07': data_reader('07'), '08': data_reader('08'), '09': data_reader('09'), '10': data_reader('10'), '11': data_reader('11'), '13': data_reader('13'), '14': data_reader('14'), '15': data_reader('15'), '16': data_reader('16')}
-    
-    # Training set
-    data = []
-    label = []
-    train_subject = []
-    for i in subjects:
-        data.append(subjects[i][0])
-        label.append(subjects[i][1])
-        train_subject.append(subjects[i][2])
-    x_tr = np.concatenate(data)
-    x_tr = torch.from_numpy(np.expand_dims(x_tr, axis = 1))
-    y_tr = np.concatenate(label)
-    y_tr = torch.from_numpy(np.reshape(y_tr, (y_tr.size,))).long()
-    sub_tr = np.concatenate(train_subject)
-    sub_tr = torch.from_numpy(np.reshape(sub_tr, (sub_tr.size,))).long()
-    
-    # Create data loader
-    trainset = TensorDataset(x_tr, y_tr, sub_tr)
-    train_loader = torch.utils.data.DataLoader(trainset, batch_size = BATCH, shuffle = True)
-    
-    # Instantiate model
-    model = EEGNet()
-    
-    # Loss and Optimizer
-    criterion = nn.BCELoss() #https://discuss.pytorch.org/t/bceloss-vs-bcewithlogitsloss/33586/2
-    optimizer = torch.optim.Adam(model.parameters(), lr = Learning_rate)
-    
-    # Set seed
-    torch.manual_seed(seed)
-    
-    # Model training
-    for epoch in trange(EPOCH):
-        for signals, labels, subject in tqdm(train_loader):
-
-            # Zero out the gradients
-            optimizer.zero_grad()
-
-            # Forward pass
-            y = model(signals, subject)
-            labels = labels.float()
-            loss = criterion(y, labels)
-        
-            # Backward pass
-            loss.backward()
-            optimizer.step()
-    
-    torch.save(model.state_dict(), '/content/gdrive/MyDrive/BCI matrices/model_weights.pth')
-    torch.save(model, '/content/gdrive/MyDrive/BCI matrices/model.pth')
-
- train_model(1, 0.002, 1, 0)
-
-### Collect pre-trained features from pre-trained model
-subjects = {'01': data_reader('01'), '02': data_reader('02'), '03': data_reader('03'), '04': data_reader('04'), '05': data_reader('05'), '06': data_reader('06'), '07': data_reader('07'), '08': data_reader('08'), '09': data_reader('09'), '10': data_reader('10'), '11': data_reader('11'), '13': data_reader('13'), '14': data_reader('14'), '15': data_reader('15'), '16': data_reader('16'), '17': data_reader('17')}
-data = []
-label = []
-train_subject = []
-for i in subjects:
-    data.append(subjects[i][0])
-    label.append(subjects[i][1])
-    train_subject.append(subjects[i][2])
-x_tr = np.concatenate(data)
-x_tr = torch.from_numpy(np.expand_dims(x_tr, axis = 1))
-y_tr = np.concatenate(label)
-y_tr = torch.from_numpy(np.reshape(y_tr, (y_tr.size,))).long()
-sub_tr = np.concatenate(train_subject)
-sub_tr = torch.from_numpy(np.reshape(sub_tr, (sub_tr.size,))).long()
-
-trainset = TensorDataset(x_tr, y_tr, sub_tr)
-train_loader = torch.utils.data.DataLoader(trainset, batch_size = 1, shuffle = False)
-
-model = EEGNet()
-model.load_state_dict(torch.load('/content/gdrive/MyDrive/BCI matrices/model_weights.pth'))
-model.flatten.register_forward_hook(get_activation('flatten'))
-model.eval()
-features = []
-sub = []
-with torch.no_grad():
-    # Iterate through test set minibatchs 
-    for signals, labels, subject in tqdm(train_loader):
-        # Forward pass, choose the most similar subject
-        if subject == '17':
-          y = model(signals, '01')
-        else: 
-          y = model(signals, subject)
-        features.append(activation['flatten'])
-        sub.append(subject)
-
-# Encoded feature matrix (97920*540)
-encoded_feature = np.zeros(shape=(97920, 540))
-for i in range(len(features)):
-  arr = features[i].cpu().detach().numpy().flatten()
-  encoded_feature[i] = arr
-
-# Individual encoded feature matrix (6120*540)
-feature_sub1 = encoded_feature[0:6120,:]
-feature_sub2 = encoded_feature[6120:12240,:]
-feature_sub3 = encoded_feature[12240:18360,:]
-feature_sub4 = encoded_feature[18360:24480,:]
-feature_sub5 = encoded_feature[24480:30600,:]
-feature_sub6 = encoded_feature[30600:36720,:]
-feature_sub7 = encoded_feature[36720:42840,:]
-feature_sub8 = encoded_feature[42840:48960,:]
-feature_sub9 = encoded_feature[48960:55080,:]
-feature_sub10 = encoded_feature[55080:61200,:]
-feature_sub11 = encoded_feature[61200:67320,:]
-feature_sub13 = encoded_feature[67320:73440,:]
-feature_sub14 = encoded_feature[73440:79560,:]
-feature_sub15 = encoded_feature[79560:85680,:]
-feature_sub16 = encoded_feature[85680:91800,:]
-feature_sub17 = encoded_feature[91800:97920,:]
-
-### We use KL divergence and Wasserstein distance to measure similarity
-# Cholesky decomposition
+# Leave-on-out model
 import scipy
 import scipy.linalg
 
@@ -411,43 +296,9 @@ def lower_t(feature):
   L = scipy.linalg.cholesky(cov, lower = True)
   return L
 
-mean1 = np.mean(feature_sub1, axis=0)
-mean2 = np.mean(feature_sub2, axis=0)
-mean3 = np.mean(feature_sub3, axis=0)
-mean4 = np.mean(feature_sub4, axis=0)
-mean5 = np.mean(feature_sub5, axis=0)
-mean6 = np.mean(feature_sub6, axis=0)
-mean7 = np.mean(feature_sub7, axis=0)
-mean8 = np.mean(feature_sub8, axis=0)
-mean9 = np.mean(feature_sub9, axis=0)
-mean10 = np.mean(feature_sub10, axis=0)
-mean11 = np.mean(feature_sub11, axis=0)
-mean13 = np.mean(feature_sub13, axis=0)
-mean14 = np.mean(feature_sub14, axis=0)
-mean15 = np.mean(feature_sub15, axis=0)
-mean16 = np.mean(feature_sub16, axis=0)
-mean17 = np.mean(feature_sub17, axis=0)
-
-l1 = lower_t(feature_sub1)
-l2 = lower_t(feature_sub2)
-l3 = lower_t(feature_sub3)
-l4 = lower_t(feature_sub4)
-l5 = lower_t(feature_sub5)
-l6 = lower_t(feature_sub6)
-l7 = lower_t(feature_sub7)
-l8 = lower_t(feature_sub8)
-l9 = lower_t(feature_sub9)
-l10 = lower_t(feature_sub10)
-l11 = lower_t(feature_sub11)
-l13 = lower_t(feature_sub13)
-l14 = lower_t(feature_sub14)
-l15 = lower_t(feature_sub15)
-l16 = lower_t(feature_sub16)
-l17 = lower_t(feature_sub17)
-
-def KL(mu1, mu0, l1, l0, k=540):
-  M = np.linalg.solve(l1, l0) #540*540
-  y = np.linalg.solve(l1, (mu1-mu0)) #540
+def KL(mu1, mu0, l1, l0, k):
+  M = np.linalg.solve(l1, l0) #k*k
+  y = np.linalg.solve(l1, (mu1-mu0)) #k
   A = 0
   C = 0
   for i in range(k):
@@ -459,84 +310,175 @@ def KL(mu1, mu0, l1, l0, k=540):
 def wasserstein(mu1,mu0,l1,l0):
   return np.linalg.norm(mu1-mu0)**2 + np.linalg.norm(l1-l0,'fro')**2
 
-# AUCs of subject 17 using different pre-trained classifiers
-def auc(which_sub):
-  subject = {'17': data_reader('17')}
-  x_tt = torch.from_numpy(np.expand_dims(subject['17'][0], axis = 1))
-  y_tt = torch.from_numpy(np.reshape(subject['17'][1], (subject['17'][1].size,))).long()
-  testset = TensorDataset(x_tt, y_tt)
-  test_loader = torch.utils.data.DataLoader(testset, batch_size = 1, shuffle = False)
+# Leave-one-out model
+def train_model(BATCH, Learning_rate, EPOCH, Leave_out, Feature_dim):
+    # A dictionary of all patients' data, labels, subject names
+    subjects = {'01': data_reader('01'), '02': data_reader('02'), '03': data_reader('03'), '04': data_reader('04'), '05': data_reader('05'), '06': data_reader('06'), '07': data_reader('07'), '08': data_reader('08'), '09': data_reader('09'), '10': data_reader('10'), '11': data_reader('11'), '13': data_reader('13'), '14': data_reader('14'), '15': data_reader('15'), '16': data_reader('16'), '17': data_reader('17')}
+    
+    # Test set
+    test_data = torch.from_numpy(np.expand_dims(subjects[Leave_out][0], axis = 1))
+    test_label = torch.from_numpy(np.reshape(subjects[Leave_out][1], (subjects[Leave_out][1].size,))).long()
+    del subjects[Leave_out] #remove test subject from dictionary
+    
+    # Training set
+    train_data = []
+    train_label = []
+    train_subject = []
+    for i in subjects:
+        train_data.append(subjects[i][0])
+        train_label.append(subjects[i][1])
+        train_subject.append(subjects[i][2])
+    x_tr = np.concatenate(train_data)
+    x_tr = torch.from_numpy(np.expand_dims(x_tr, axis = 1))
+    y_tr = np.concatenate(train_label)
+    y_tr = torch.from_numpy(np.reshape(y_tr, (y_tr.size,))).long()
+    sub_tr = np.concatenate(train_subject)
+    sub_tr = torch.from_numpy(np.reshape(sub_tr, (sub_tr.size,))).long()
+    
+    # Create data loaders
+    trainset = TensorDataset(x_tr, y_tr, sub_tr)
+    train_loader = torch.utils.data.DataLoader(trainset, batch_size = BATCH, shuffle = True)
+    testset = TensorDataset(test_data, test_label)
+    test_loader = torch.utils.data.DataLoader(testset, batch_size = BATCH, shuffle = False)
+    
+    # Instantiate model
+    model = EEGNet()
+    
+    # Loss and Optimizer
+    criterion = nn.BCELoss() #https://discuss.pytorch.org/t/bceloss-vs-bcewithlogitsloss/33586/2
+    optimizer = torch.optim.NAdam(model.parameters(), lr = Learning_rate)
+    
+    # Set seed
+    torch.manual_seed(1)
+    
+##### Model training
+    for epoch in trange(EPOCH):
+        for signals, labels, subject in tqdm(train_loader):
 
-  model = EEGNet()
-  model.load_state_dict(torch.load('/content/gdrive/MyDrive/BCI matrices/model_weights.pth'))
-  model.eval()
-  predicted_prob = []
-  true_label = []
-  with torch.no_grad():
-    # Iterate through test set minibatchs 
-    for signals, labels in tqdm(test_loader):
-        y = model(signals, which_sub)
-        predicted_prob.append(y)
-        true_label.append(labels.data.numpy())
+            # Zero out the gradients
+            optimizer.zero_grad()
 
-  predicted_prob_target = unlist(predicted_prob)
-  true_label = unlist(true_label)
+            # Forward pass
+            y = model(signals, subject)
+            labels = labels.float()
+            loss = criterion(y, labels)
 
-  auc = roc_auc_score(true_label, predicted_prob_target)
-  print('AUC score: {}'.format(auc))
-  ap = average_precision_score(true_label, predicted_prob_target)
-  print('Average precision score: {}'.format(ap))
-  return auc,ap
+            # Backward pass
+            loss.backward()
+            optimizer.step()
+    
+    # Save trained model
+    torch.save(model.state_dict(), f"/content/gdrive/MyDrive/BCI matrices/model{Leave_out}_weights.pth")
+    torch.save(model, f"/content/gdrive/MyDrive/BCI matrices/model{Leave_out}.pth")
 
-auc1,ap1 = auc(1)
-auc2,ap2 = auc(2)
-auc3,ap3 = auc(3)
-auc4,ap4 = auc(4)
-auc5,ap5 = auc(5)
-auc6,ap6 = auc(6)
-auc7,ap7 = auc(7)
-auc8,ap8 = auc(8)
-auc9,ap9 = auc(9)
-auc10,ap10 = auc(10)
-auc11,ap11 = auc(11)
-auc13,ap13 = auc(13)
-auc14,ap14 = auc(14)
-auc15,ap15 = auc(15)
-auc16,ap16 = auc(16)
+##### Extract latent features from pre-trained model
+    # Reload all subjects
+    all_subjects = {'01': data_reader('01'), '02': data_reader('02'), '03': data_reader('03'), '04': data_reader('04'), '05': data_reader('05'), '06': data_reader('06'), '07': data_reader('07'), '08': data_reader('08'), '09': data_reader('09'), '10': data_reader('10'), '11': data_reader('11'), '13': data_reader('13'), '14': data_reader('14'), '15': data_reader('15'), '16': data_reader('16'), '17': data_reader('17')}
+    data = []
+    label = []
+    subject = []
+    for i in all_subjects:
+        data.append(all_subjects[i][0])
+        label.append(all_subjects[i][1])
+        subject.append(all_subjects[i][2])
+    x_tr = np.concatenate(data)
+    x_tr = torch.from_numpy(np.expand_dims(x_tr, axis = 1))
+    y_tr = np.concatenate(label)
+    y_tr = torch.from_numpy(np.reshape(y_tr, (y_tr.size,))).long()
+    sub_tr = np.concatenate(subject)
+    sub_tr = torch.from_numpy(np.reshape(sub_tr, (sub_tr.size,))).long()
+    # All subjects feed into the data loader to get features
+    trainingset = TensorDataset(x_tr, y_tr, sub_tr)
+    training_loader = torch.utils.data.DataLoader(trainingset, batch_size = BATCH, shuffle = False)
 
-### Visualization
-auc = [auc1,auc2,auc3,auc4,auc5,auc6,auc7,auc8,auc9,auc10,auc11,auc13,auc14,auc15,auc16]
-ap = [ap1,ap2,ap3,ap4,ap5,ap6,ap7,ap8,ap9,ap10,ap11,ap13,ap14,ap15,ap16]
-# KL divergence with reference group = 17
-KL = [KL(mean1,mean17,l1,l17),KL(mean2,mean17,l2,l17),KL(mean3,mean17,l3,l17),KL(mean4,mean17,l4,l17),KL(mean5,mean17,l5,l17),KL(mean6,mean17,l6,l17),KL(mean7,mean17,l7,l17),KL(mean8,mean17,l8,l17),KL(mean9,mean17,l9,l17),KL(mean10,mean17,l10,l17),KL(mean11,mean17,l11,l17),KL(mean13,mean17,l13,l17),KL(mean14,mean17,l14,l17),KL(mean15,mean17,l15,l17),KL(mean16,mean17,l16,l17)]
-# Wasserstein distance with reference group = 17
-wass = [wasserstein(mean1,mean17,l1,l17),wasserstein(mean2,mean17,l2,l17),wasserstein(mean3,mean17,l3,l17),wasserstein(mean4,mean17,l4,l17),wasserstein(mean5,mean17,l5,l17),wasserstein(mean6,mean17,l6,l17),wasserstein(mean7,mean17,l7,l17),wasserstein(mean8,mean17,l8,l17),wasserstein(mean9,mean17,l9,l17),wasserstein(mean10,mean17,l10,l17),wasserstein(mean11,mean17,l11,l17),wasserstein(mean13,mean17,l13,l17),wasserstein(mean14,mean17,l14,l17),wasserstein(mean15,mean17,l15,l17),wasserstein(mean16,mean17,l16,l17)]
+    model = EEGNet()
+    model.load_state_dict(torch.load(f"/content/gdrive/MyDrive/BCI matrices/model{Leave_out}_weights.pth"))
+    model.flatten.register_forward_hook(get_activation('flatten'))
+    model.eval()
+    features = []
+    sub = []
+    with torch.no_grad():
+        for signals, labels, subject in tqdm(training_loader):
+            y = model(signals, subject)
+            features.append(activation['flatten'])
+            sub.append(subject)
 
-plt.scatter(auc, KL)
-plt.title('AUC vs KL')
-plt.xlabel('AUC')
-plt.ylabel('KL')
-plt.show()
+##### Compute similarity scores on feature space, determine the most similar sibject    
+    encoded_feature = np.zeros(shape=(97920, Feature_dim))
+    for i in range(len(features)):
+      arr = features[i].cpu().detach().numpy().flatten()
+      encoded_feature[i] = arr
+    # Individual encoded feature matrix
+    feature_sub1 = encoded_feature[0:6120,:]
+    feature_sub2 = encoded_feature[6120:12240,:]
+    feature_sub3 = encoded_feature[12240:18360,:]
+    feature_sub4 = encoded_feature[18360:24480,:]
+    feature_sub5 = encoded_feature[24480:30600,:]
+    feature_sub6 = encoded_feature[30600:36720,:]
+    feature_sub7 = encoded_feature[36720:42840,:]
+    feature_sub8 = encoded_feature[42840:48960,:]
+    feature_sub9 = encoded_feature[48960:55080,:]
+    feature_sub10 = encoded_feature[55080:61200,:]
+    feature_sub11 = encoded_feature[61200:67320,:]
+    feature_sub13 = encoded_feature[67320:73440,:]
+    feature_sub14 = encoded_feature[73440:79560,:]
+    feature_sub15 = encoded_feature[79560:85680,:]
+    feature_sub16 = encoded_feature[85680:91800,:]
+    feature_sub17 = encoded_feature[91800:97920,:]
+    
+    feature_d = {'01':feature_sub1, '02':feature_sub2, '03':feature_sub3, '04':feature_sub4, '05':feature_sub5, '06':feature_sub6, '07':feature_sub7, '08':feature_sub8, '09':feature_sub9, '10':feature_sub10, '11':feature_sub11, '13':feature_sub13, '14':feature_sub14, '15':feature_sub15, '16':feature_sub16, '17':feature_sub17}
+    keys = list(feature_d.keys())
+    feature_list = [[np.mean(feature_d[key], axis=0), lower_t(feature_d[key])] for key in feature_d]
+    feature_dict = dict(zip(keys, feature_list)) #{subject: [mean, lower triangular]}
+    
+    # Compute KL divergence and wasserstein distance
+    reference_mean = feature_dict[Leave_out][0]
+    reference_l = feature_dict[Leave_out][1]
+    del feature_dict[Leave_out]
+    KL_list = [KL(feature_dict[key][0], reference_mean, feature_dict[key][1], reference_l, Feature_dim) for key in feature_dict]
+    wass_list = [wasserstein(feature_dict[key][0], reference_mean, feature_dict[key][1], reference_l) for key in feature_dict]
+    similarity_scores = [[KL_list[i], wass_list[i]] for i in range(len(KL_list))]
+    remaining_keys = list(feature_dict.keys())
+    similarity_dict = dict(zip(remaining_keys, similarity_scores)) #{subject: [KL, Wasserstein]}
+    # Most similar subject
+    most_similar_sub_KL = min(similarity_dict.items(), key = lambda x:x[1][0])[0]
+    most_similar_sub_wass = min(similarity_dict.items(), key = lambda x:x[1][1])[0]
+    print(most_similar_sub_KL)
+    print(most_similar_sub_wass)
 
-#plt.scatter(ap, KL)
-#plt.title('AP vs KL')
-#plt.xlabel('AP')
-#plt.ylabel('KL')
-#plt.show()
+##### Compute AUC and AP based on suggested optimal subject
+    model = EEGNet()
+    model.load_state_dict(torch.load(f"/content/gdrive/MyDrive/BCI matrices/model{Leave_out}_weights.pth"))
+    model.eval()
+    predicted_prob_KL = []
+    predicted_prob_wass = []
+    true_label = []
+    with torch.no_grad():
+      # Iterate through test set minibatchs 
+      for signals, labels in tqdm(test_loader):
+          # Prediction performance suggested by KL
+          y1 = model(signals, int(most_similar_sub_KL))
+          predicted_prob_KL.append(y1.data.numpy())
+          # Prediction performance suggested by Wasserstein
+          y2 = model(signals, int(most_similar_sub_wass))
+          predicted_prob_wass.append(y2.data.numpy())
+          # True label
+          true_label.append(labels.data.numpy())
 
-plt.scatter(auc, wass)
-plt.title('AUC vs Wasserstein')
-plt.xlabel('AUC')
-plt.ylabel('Wass_d')
-plt.show()
+    predicted_prob_KL = unlist(predicted_prob_KL)
+    predicted_prob_wass = unlist(predicted_prob_wass)
+    true_label = unlist(true_label)
 
-#plt.scatter(ap, wass)
-#plt.title('AP vs Wasserstein')
-#plt.xlabel('AP')
-#plt.ylabel('Wass_d')
-#plt.show()
+    auc_KL = roc_auc_score(true_label, predicted_prob_KL)
+    print('AUC score, KL: {}'.format(auc_KL))
+    ap_KL = average_precision_score(true_label, predicted_prob_KL)
+    print('AP score, KL: {}'.format(ap_KL))
+    auc_wass = roc_auc_score(true_label, predicted_prob_wass)
+    print('AUC score, wass: {}'.format(auc_wass))
+    ap_wass = average_precision_score(true_label, predicted_prob_wass)
+    print('AP score, wass: {}'.format(ap_wass))
 
-## Check distribution
-import seaborn as sns
-sns.set(rc={'figure.figsize':(20,20)})
-sns.boxplot(data=feature_sub13)
+    return predicted_prob_KL, predicted_prob_wass, true_label
+
+# Train a model without subject 17, batch size = 1, learning rate = 0.002, epoch size = 1, dimention of latent feature space = 480
+predicted_prob_KL, predicted_prob_wass, true_label = train_model(1, 0.002, 1, '17', 480)
