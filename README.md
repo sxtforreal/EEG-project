@@ -9,14 +9,14 @@ Due to the fact that P300 waves differ in amplitude and latency across subjects 
 
 An ideal calibration-less algorithm should take one of two paths: (1) determine a set of perfectly generalized features that do not differ among subjects (generalization) or (2) store various and infinite forms of P300 signals for comparison (robustness).
 
-To acquire generalization and robustness, we are building a similarity measurement in the high dimensional encoded feature space to support our model. After the model is trained with a library of labeled training data, the new unlabeled data is mapped into a pre-trained feature space and compare with the existing ones. Based on the similarity scores, we assign the most appropriate pre-trained classifier to use. 
+To acquire generalization and robustness, we are incorporating subject-wise Domain Adaptability technique to support our Convolutional Neural Network. After the model is trained with a library of labeled training data, the new unlabeled data is mapped into a pre-trained feature space and compare with the existing ones. Based on the similarity scores, we assign the most appropriate pre-trained classifier to use. 
 
 Meanwhile, we will try other methods to accelerate the process including neural network architecture modification, dynamic stopping criteria for data acquisition, etc.
 
 ## Details
 P300 speller users use a 9 by 8 spelling grid as 'keyboard'. They gaze at one of the cells to show their spelling intentions. In each round, the rows and columns of the spelling grid flash sequentially. When the gazed cell flashes, a P300 wave generates in the user’s EEG signal which can be characterized as a positive deflection with a latency of roughly 300 ms after the flash onset. 
 
-In pre-processing, we crop the continuous raw EEG signal into epochs, each epoch corresponds to a 800 ms window after each flash onset. Techniques such as frequency filtering, Independent Component Analysis, and EOG/ECG channel simulation are carried out to increase the signal-to-noise ratio.
+In pre-processing, we crop the continuous raw EEG signal into epochs, each epoch corresponds to a 800 ms window after each flash onset. Techniques such as frequency filtering, Common Average Referencing, EOG channel simulation, and Independent Component Analysis are carried out to increase the signal-to-noise ratio.
 
 We use EEGNet(Lawhern et al., 2018) architecture as reference for our CNN model, which aims to detect the pattern of P300 wave in each epoch and make binary classification. Once we can successfully identify whether an epoch contains P300 wave, or equivalently whether a flash elicits ERP, we can infer subject’s spelling intentions with the known information of flashing order.
 
