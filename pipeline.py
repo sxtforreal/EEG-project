@@ -116,7 +116,7 @@ def data_for_EEGNET(subject: str, which_round: str):
     
     # Epoching
     epoch_r = mne.Epochs(r, events = events, event_id = event_id, tmin = tmin,
-                    tmax = tmax, baseline = baseline, picks = ['PO7', 'PO8', 'PO3', 'O1', 'Oz', 'Cz', 'PO4', 'O2'])
+                    tmax = tmax, baseline = baseline, picks = ['PO7', 'PO8', 'PO3', 'O1', 'P7', 'P5', 'Oz', 'Cz', 'FC2', 'PO4', 'Fz', 'F4', 'FC1', 'O2', 'Fp2', 'Fp1', 'F3', 'POz'])
     epoch_dat_r = epoch_r.get_data()
    
     # Get label
@@ -187,13 +187,13 @@ def data_reader(subject):
     x.append(subject)
     return x
   
- ### EEGNet architecture
+### EEGNet architecture
 class EEGNet(nn.Module):
     def __init__(self):
         super(EEGNet, self).__init__()
 
-        self.C = 8 #Number of channels
-        self.F1 = 8
+        self.C = 18 #Number of channels
+        self.F1 = 18
         self.D = 2
         self.F2 = self.F1 * self.D # Number of filters for separable conv, set to be F2
         
@@ -481,4 +481,4 @@ def train_model(BATCH, Learning_rate, EPOCH, Leave_out, Feature_dim):
     return predicted_prob_KL, predicted_prob_wass, true_label
 
 # Train a model without subject 17, batch size = 1, learning rate = 0.002, epoch size = 1, dimention of latent feature space = 480
-predicted_prob_KL, predicted_prob_wass, true_label = train_model(1, 0.002, 1, '17', 480)
+predicted_prob_KL, predicted_prob_wass, true_label = train_model(1, 0.002, 1, '17', )
